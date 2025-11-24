@@ -21,8 +21,8 @@ class JobStatus(str, enum.Enum):
 class Job(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     owner_user_id: str = Field(index=True)
-    sourcetype: SourceType = Field(sa_column=Column(Enum(SourceType)))
-    sourceurl: Optional[str] = Field(default=None, index=True)
+    source_type: SourceType = Field(sa_column=Column(Enum(SourceType)))
+    source_url: Optional[str] = Field(default=None, index=True)
     status: JobStatus = Field(
         sa_column=Column(Enum(JobStatus)), default=JobStatus.queued
     )
@@ -31,7 +31,10 @@ class Job(SQLModel, table=True):
     flashcards: Optional[str] = Field(default=None, nullable=True)
     quiz: Optional[str] = Field(default=None, nullable=True)
     error_message: Optional[str] = Field(default=None, nullable=True)
-    created_at: datetime = Field(DateTime(timezone=True))
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
