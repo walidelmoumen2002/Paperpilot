@@ -16,6 +16,7 @@ class JobCreateResponse(BaseModel):
 
 
 class JobStatusResponse(BaseModel):
+    id: UUID
     status: JobStatus
     progress: int = Field(ge=0, le=100)
     error_message: Optional[str] = None

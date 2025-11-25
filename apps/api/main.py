@@ -10,6 +10,7 @@ import time
 app = FastAPI()
 origins = [
     "http://localhost:3010",
+    "http://localhost:3011",
 ]
 app.include_router(jobs.router)
 app.add_middleware(

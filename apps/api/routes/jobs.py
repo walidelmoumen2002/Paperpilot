@@ -12,6 +12,7 @@ from supabase import Client, create_client
 from ..deps.db import get_session
 from ..models import schemas
 from ..models.job_model import Job, JobStatus, SourceType
+from ..utils.arxiv_scraper import scrape_arxiv_data
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +138,7 @@ async def read_job_status(
     if not job:
         return error_response(404, "JOB_NOT_FOUND", "Job not found")
     return {
+        "id": job.id,
         "status": job.status,
         "progress": job.progress,
         "error_message": job.error_message,
@@ -164,7 +166,7 @@ async def create_job_file(
     file_content = await file.read()
 
     file_ext = file.filename.split(".")[-1] if "." in file.filename else "pdf"
-    file_path = f"uploads/{uuid.uuid4()}.{file_ext}"
+    file_path = f"uploads/{owner_user_id}/{uuid.uuid4()}.{file_ext}"
     bucket_name = "paper-uploads"
 
     try:
@@ -209,10 +211,17 @@ async def create_job_file(
 async def create_job_link(
     payload: schemas.LinkCreateRequest, session: SessionDep
 ) -> schemas.JobCreateResponse:
+    try:
+
+        data = scrape_arxiv_data(str(payload.url))
+        final_source_url = data["pdf_url"]
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
     new_job = Job(
-        owner_user_id=payload.owner_user_id or "",
+        owner_user_id=payload.owner_user_id or "anonymous",
         source_type=SourceType.url,
-        source_url=str(payload.url),
+        source_url=final_source_url,
         status=JobStatus.queued,
         progress=0,
     )
