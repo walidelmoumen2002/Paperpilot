@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -14,8 +15,17 @@ from ..models.job_model import Job, JobStatus, SourceType
 
 logger = logging.getLogger(__name__)
 
-supabase_url = os.environ.get("SUPABASE_URL")
-supabase_key = os.environ.get("SUPABASE_KEY")
+
+def _env_value(key: str) -> str | None:
+    """Return an env var trimmed of surrounding quotes/whitespace."""
+    value = os.environ.get(key)
+    if not value:
+        return None
+    return value.strip().strip('"').strip("'") or None
+
+
+supabase_url = _env_value("SUPABASE_URL")
+supabase_key = _env_value("SUPABASE_KEY")
 supabase: Client | None = None
 if supabase_url and supabase_key:
     try:
@@ -142,11 +152,40 @@ async def read_job_status(
     response_model=schemas.JobCreateResponse,
 )
 async def create_job_file(
-    payload: schemas.PDFCreateRequest, session: SessionDep
+    session: SessionDep,
+    file: UploadFile = File(...),
+    owner_user_id: str | None = None,
 ) -> schemas.JobCreateResponse:
+
+    if not supabase:
+        raise HTTPException(
+            status_code=500, detail="Supabase client not configured properly."
+        )
+    file_content = await file.read()
+
+    file_ext = file.filename.split(".")[-1] if "." in file.filename else "pdf"
+    file_path = f"uploads/{uuid.uuid4()}.{file_ext}"
+    bucket_name = "paper-uploads"
+
+    try:
+        # 3. Upload to Supabase Storage
+        supabase.storage.from_(bucket_name).upload(
+            path=file_path,
+            file=file_content,
+            file_options={"content-type": "application/pdf"},
+        )
+
+        public_url = supabase.storage.from_(bucket_name).get_public_url(file_path)
+
+    except Exception as e:
+        # Log the specific error in production
+        raise HTTPException(
+            status_code=500, detail=f"Failed to upload to storage: {str(e)}"
+        )
     new_job = Job(
-        owner_user_id=payload.owner_user_id or "",
+        owner_user_id=owner_user_id or "anonymous",
         source_type=SourceType.pdf,
+        source_url=public_url,
         status=JobStatus.queued,
         progress=0,
     )

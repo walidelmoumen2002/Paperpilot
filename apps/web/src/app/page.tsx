@@ -8,9 +8,39 @@ import { Button } from "@/components/ui/button";
 
 export default function Home() {
   const [files, setFiles] = useState<File[] | undefined>();
-  const handleDrop = (files: File[]) => {
-    console.log(files);
-    setFiles(files);
+  const [isUploading, setIsUploading] = useState(false); // Add loading state
+
+  const handleDrop = async (acceptedFiles: File[]) => {
+    setFiles(acceptedFiles);
+    const file = acceptedFiles[0];
+    if (!file) return;
+
+    setIsUploading(true);
+
+    // 1. Create FormData
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("owner_user_id", "test-user"); // Replace with Clerk ID later
+
+    try {
+      // 2. Send to Backend
+      const response = await fetch("http://localhost:8000/v1/jobs/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error("Upload failed");
+
+      const data = await response.json();
+      console.log("Job Created:", data);
+      // Navigate to dashboard or show success message here
+
+    } catch (error) {
+      console.error(error);
+      alert("Error uploading file");
+    } finally {
+      setIsUploading(false);
+    }
   };
   return (
     <main className="flex max-w-3xl mx-auto flex-col items-center justify-between p-14">
