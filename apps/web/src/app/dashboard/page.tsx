@@ -62,7 +62,7 @@ export default function Page() {
             <TableCaption>Recent uploads</TableCaption>
             <TableHeader>
                 <TableRow>
-                    <TableHead className="w-[200px]">Job ID</TableHead>
+                    <TableHead className="w-[200px]">ID</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Progress</TableHead>
                     <TableHead>Updated</TableHead>
