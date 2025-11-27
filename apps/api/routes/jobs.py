@@ -3,6 +3,7 @@ import logging
 import os
 import uuid
 from typing import Annotated
+import httpx
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse
@@ -14,6 +15,7 @@ from ..models import schemas
 from ..models.job_model import Job, JobStatus, SourceType
 from ..utils.arxiv_scraper import scrape_arxiv_data
 from ..tasks import process_pdf_task
+from ..utils.pdf_parser import compress_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +157,7 @@ async def create_job_file(
             status_code=500, detail="Supabase client not configured properly."
         )
     file_content = await file.read()
+    file_content = compress_pdf(file_content)
 
     file_ext = file.filename.split(".")[-1] if "." in file.filename else "pdf"
     file_path = f"uploads/{owner_user_id}/{uuid.uuid4()}.{file_ext}"
@@ -211,11 +214,42 @@ async def create_job_link(
         final_source_url = data["pdf_url"]
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
+    try:
+        async with httpx.AsyncClient() as client:
+            # follow_redirects is crucial for arXiv links
+            response = await client.get(final_source_url, follow_redirects=True)
+            response.raise_for_status()
+            file_content = response.content
+            file_content = compress_pdf(file_content)
+
+    except Exception as e:
+        logger.error(f"Failed to download from arXiv: {e}")
+        raise HTTPException(
+            status_code=502, detail="Failed to download PDF from source"
+        )
+
+    # 3. Upload to Supabase (Unified Storage)
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Storage not configured")
+
+    owner_id = payload.owner_user_id or "anonymous"
+
+    file_name = f"{data['arxiv_id']}_{uuid.uuid4()}.pdf"
+    file_path = f"uploads/{owner_id}/{file_name}"
+    bucket_name = "paper-uploads"
+
+    supabase.storage.from_(bucket_name).upload(
+        path=file_path,
+        file=file_content,
+        file_options={"content-type": "application/pdf"},
+    )
+
+    stored_url = supabase.storage.from_(bucket_name).get_public_url(file_path)
 
     new_job = Job(
         owner_user_id=payload.owner_user_id or "anonymous",
         source_type=SourceType.url,
-        source_url=final_source_url,
+        source_url=stored_url,
         status=JobStatus.queued,
         progress=0,
     )
@@ -223,6 +257,8 @@ async def create_job_link(
     session.add(new_job)
     session.commit()
     session.refresh(new_job)
+
+    process_pdf_task.delay(str(new_job.id))
 
     return schemas.JobCreateResponse(
         job_id=new_job.id,

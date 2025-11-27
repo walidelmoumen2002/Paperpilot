@@ -3,7 +3,32 @@ import io
 import re
 from typing import Any, Dict, List
 
-from pypdf import PdfReader
+from pypdf import PdfReader, PdfWriter
+
+
+def compress_pdf(file_bytes: bytes) -> bytes:
+    """
+    Compresses PDF content streams (lossless) to reduce file size.
+    """
+    try:
+        reader = PdfReader(io.BytesIO(file_bytes))
+        writer = PdfWriter()
+
+        for page in reader.pages:
+            # 1. Compress content streams (text/vector data)
+            page.compress_content_streams()
+            writer.add_page(page)
+
+        # 2. Reduce metadata overhead
+        writer.add_metadata(reader.metadata)
+
+        output_stream = io.BytesIO()
+        writer.write(output_stream)
+        return output_stream.getvalue()
+    except Exception as e:
+        # If compression fails, return original bytes to avoid breaking the pipeline
+        print(f"Warning: PDF compression failed, using original file. Error: {e}")
+        return file_bytes
 
 
 def clean_text(text: str) -> str:

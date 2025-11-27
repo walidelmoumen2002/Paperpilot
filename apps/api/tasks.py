@@ -50,12 +50,7 @@ def process_pdf_task(job_id: str):
 
             # Download as bytes
             res = supabase.storage.from_("paper-uploads").download(file_path)
-            file_bytes = res  # Supabase python client returns bytes directly
-        else:
-            # Handle external URLs (Arxiv) if needed later
-            # response = requests.get(source_url)
-            # file_bytes = response.content
-            pass
+            file_bytes = res
 
         if not file_bytes:
             raise ValueError("Could not download file content.")
