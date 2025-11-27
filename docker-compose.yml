@@ -57,7 +57,7 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    command: python -m apps.api.worker
+    command: celery -A apps.api.core.celery_app worker --loglevel=info
     env_file:
       - .env
     environment:

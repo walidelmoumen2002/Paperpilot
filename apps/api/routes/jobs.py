@@ -7,12 +7,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse
 from sqlmodel import Session, select
-from supabase import Client, create_client
+from ..deps.supabase import get_supabase_client
 
 from ..deps.db import get_session
 from ..models import schemas
 from ..models.job_model import Job, JobStatus, SourceType
 from ..utils.arxiv_scraper import scrape_arxiv_data
+from ..tasks import process_pdf_task
 
 logger = logging.getLogger(__name__)
 
@@ -25,19 +26,9 @@ def _env_value(key: str) -> str | None:
     return value.strip().strip('"').strip("'") or None
 
 
-supabase_url = _env_value("SUPABASE_URL")
-supabase_key = _env_value("SUPABASE_KEY")
-supabase: Client | None = None
-if supabase_url and supabase_key:
-    try:
-        supabase = create_client(supabase_url, supabase_key)
-    except Exception as exc:  # pragma: no cover - startup logging only
-        logger.warning("Supabase client disabled: %s", exc)
-else:  # pragma: no cover - startup logging only
-    logger.warning("SUPABASE_URL/KEY not set; Supabase client disabled.")
-
 router = APIRouter()
 SessionDep = Annotated[Session, Depends(get_session)]
+supabase = get_supabase_client()
 
 
 def error_response(status_code: int, code: str, message: str) -> JSONResponse:
@@ -194,6 +185,9 @@ async def create_job_file(
     session.add(new_job)
     session.commit()
     session.refresh(new_job)
+
+    # Kick off async processing after job record is persisted
+    process_pdf_task.delay(str(new_job.id))
 
     return schemas.JobCreateResponse(
         job_id=new_job.id,

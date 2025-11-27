@@ -3,7 +3,7 @@ node_modules
 .next
 .turbo
 .vercel
-.env
+
 # Python
 .venv
 venv
