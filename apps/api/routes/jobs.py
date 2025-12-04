@@ -5,7 +5,7 @@ import uuid
 from typing import Annotated
 import httpx
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, Response
 from fastapi.responses import JSONResponse
 from sqlmodel import Session, select
 from ..deps.supabase import get_supabase_client
@@ -13,9 +13,12 @@ from ..deps.supabase import get_supabase_client
 from ..deps.db import get_session
 from ..models import schemas
 from ..models.job_model import Job, JobStatus, SourceType
+from ..models.section_model import Section
+from ..models.summary_model import Summary
 from ..utils.arxiv_scraper import scrape_arxiv_data
 from ..tasks import process_pdf_task
 from ..utils.pdf_parser import compress_pdf
+from sqlalchemy import delete
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +141,47 @@ async def read_job_status(
         "created_at": job.created_at,
         "updated_at": job.updated_at,
     }
+
+
+@router.delete(
+    "/v1/jobs/{job_id}",
+    tags=["jobs"],
+    status_code=204,
+    responses={
+        404: {
+            "model": schemas.ErrorResponse,
+            "description": "Job not found",
+            "content": {
+                "application/json": {
+                    "example": {"code": "JOB_NOT_FOUND", "message": "Job not found"}
+                }
+            },
+        }
+    },
+)
+async def delete_job(job_id: str, session: SessionDep) -> Response:
+    job = session.get(Job, job_id)
+    if not job:
+        return error_response(404, "JOB_NOT_FOUND", "Job not found")
+
+    # Delete summaries tied to this job's sections, then sections.
+    section_ids = list(session.exec(select(Section.id).where(Section.job_id == job_id)))
+    if section_ids:
+        session.exec(delete(Summary).where(Summary.section_id.in_(section_ids)))
+    session.exec(delete(Section).where(Section.job_id == job_id))
+
+    # Delete stored PDF if present and in our bucket
+    if supabase and job.source_url and "paper-uploads" in job.source_url:
+        try:
+            # source_url is public URL; extract path after bucket name
+            path_part = job.source_url.split("paper-uploads/")[-1]
+            supabase.storage.from_("paper-uploads").remove([path_part])
+        except Exception as exc:  # pragma: no cover - best-effort cleanup
+            logger.warning("Failed to remove file from Supabase: %s", exc)
+
+    session.delete(job)
+    session.commit()
+    return Response(status_code=204)
 
 
 @router.post(

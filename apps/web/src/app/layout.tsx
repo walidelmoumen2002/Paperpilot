@@ -3,6 +3,7 @@ import "./globals.css";
 import { Navbar01 } from '@/components/ui/shadcn-io/navbar-01';
 import { Inter } from 'next/font/google'
 import Providers from "@/providers";
+import { Toaster } from "@/components/ui/toaster";
 
 
 // If loading a variable font, you don't need to specify the font weight
@@ -25,6 +26,7 @@ export default function RootLayout({
         <Navbar01 ctaHref={"/login"} className="bg-gray-100" />
         <Providers>
           {children}
+          <Toaster position="top-right" />
         </Providers>
       </body>
     </html>

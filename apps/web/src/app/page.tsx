@@ -55,7 +55,7 @@ export default function Home() {
 
     return response.json();
   }
-  const mutation = useMutation({
+  const fileMutation = useMutation({
     mutationFn: handleDrop,
     onSuccess: (data) => {
       console.log("File uploaded successfully:", data);
@@ -85,7 +85,7 @@ export default function Home() {
       <div className="flex flex-col items-center justify-center bg-white py-5 px-10 rounded-md border border-gray-200 w-3/4">
         <Dropzone
           maxFiles={1}
-          onDrop={(files) => mutation.mutate(files)}
+          onDrop={(files) => fileMutation.mutate(files)}
           onError={console.error}
           className="h-52"
         >
@@ -99,8 +99,8 @@ export default function Home() {
         () => {
           linkMutation.mutate(link);
         }
-      } className="w-3/4 my-5 py-5 text-sm rounded-lg" disabled={mutation.isPending}>
-        {mutation.isPending ? "Uploading..." : "Submit & Analyze"}
+      } className="w-3/4 my-5 py-5 text-sm rounded-lg" disabled={fileMutation.isPending || linkMutation.isPending}>
+        {fileMutation.isPending || linkMutation.isPending ? "Uploading..." : "Submit & Analyze"}
       </Button>
       <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
         By uploading , you agree to our <a href="#">Terms of Service</a>{" "}
