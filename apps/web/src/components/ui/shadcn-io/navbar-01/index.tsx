@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -167,11 +168,12 @@ export const Navbar01 = React.forwardRef<HTMLElement, Navbar01Props>(
             )}
             {/* Main nav */}
             <div className="flex items-center  gap-6 w-full ">
-              <button
-                onClick={(e) => e.preventDefault()}
+              <Link
+                href="/"
                 className="flex self-start items-center space-x-2 text-primary hover:text-primary/90 transition-colors cursor-pointer"
+                aria-label="Go to homepage"
               >
-                <div >
+                <div>
                   <Image
                     src="/logo.svg"
                     alt="Description of my image"
@@ -179,7 +181,7 @@ export const Navbar01 = React.forwardRef<HTMLElement, Navbar01Props>(
                     height={50} // Specify height
                   />
                 </div>
-              </button>
+              </Link>
               {/* Navigation menu */}
               {!isMobile && (
                 <NavigationMenu className="flex justify-center mx-auto ">
